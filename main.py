@@ -1,29 +1,62 @@
 import tkinter as tk
 import tkinter.ttk as ttk
+import random
 
+def init_card_sequence():
+    global word_sequence, current_card_number
+    word_sequence = [i for i in range(word_count)]
+    current_card_number = 1
+    return word_sequence.pop(0)
 
-def replace_label_text():
-    global word_idx
-    global answer_revealed
+def get_next_word():
+    global word_sequence, current_card_number
 
-    txt = lbl_card_txt["text"]
+    # elfogytak a szavak
+    if len(word_sequence) == 0:
+        idx = init_card_sequence()
+        return idx
+    else:
+        current_card_number += 1
+        return word_sequence.pop(0)
 
-    if answer_revealed:
-        word_idx += 1
-        if word_idx >= word_count:
-            word_idx = 0
+def update_card_label():
+    if not answer_revealed:
         lbl_card_txt["text"] = words[word_idx][0]
-        btn_txt = BTN_REVEAL_TXT[0]
-        lbl_current_page["text"] = f'{word_idx+1}'
+        lbl_current_page["text"] = f'{current_card_number}'
     else:
         lbl_card_txt["text"] = words[word_idx][1]
+
+def load_next_card():
+    global word_idx
+    global current_card_number
+    global answer_revealed
+    global word_sequence
+
+    if answer_revealed:
+        word_idx = get_next_word()
+        btn_txt = BTN_REVEAL_TXT[0]
+    else:
         btn_txt = BTN_REVEAL_TXT[1]
 
     btn_reveal["text"] = btn_txt
-
     answer_revealed = not answer_revealed
 
-    return txt
+    update_card_label()
+
+def shuffle_set():
+    global word_sequence, word_idx, answer_revealed, current_card_number
+    if answer_revealed:
+        # ha már fel lett fedve a kihúzott kártya, tovább is lép egyszerre
+        current_card_number += 1
+        answer_revealed = False
+    else:
+        # ha még nem lett felfedve a válasz, visszarakja a kártyák közé
+        word_sequence.append(word_idx)
+
+    random.shuffle(word_sequence)
+    word_idx = word_sequence.pop(0)
+    update_card_label()
+
 
 BTN_REVEAL_TXT = ('Show', 'Next')
 
@@ -40,12 +73,13 @@ words = (('ร้อย', 'hundred'),
          )
 word_count = len(words)
 
-word_idx = 0
+word_idx = init_card_sequence()
+
 answer_revealed = False
 
 window = tk.Tk()
 
-window.columnconfigure(0, weight=1, minsize=50)
+window.columnconfigure(0, weight=1, minsize=200)
 window.rowconfigure([0, 2], weight=1, minsize=50)
 
 frm_buttons = tk.Frame(width=100, bg='black')
@@ -54,7 +88,7 @@ frm_buttons.grid(column=0, row=0, sticky='nw')
 btn_new_set_save = ttk.Button(text='Save & New set', master=frm_buttons)
 btn_new_set_save.pack(side=tk.LEFT, padx=10, pady=10)
 
-btn_new_set_no_save = ttk.Button(text='New set without saving', master=frm_buttons)
+btn_new_set_no_save = ttk.Button(text='New set', master=frm_buttons)
 btn_new_set_no_save.pack(side=tk.RIGHT)
 
 frm_card = tk.Frame(bg='lime', width=600, height=400)
@@ -72,15 +106,21 @@ frm_card_buttons.pack()
 
 btn_reveal = ttk.Button(text=BTN_REVEAL_TXT[0],
                         master=frm_card_buttons,
-                        command=replace_label_text)
+                        command=load_next_card)
 
 btn_reveal.pack(side=tk.LEFT, padx=10, pady=10)
 
-btn_skip = ttk.Button(text='Skip', master=frm_card_buttons)
-btn_skip.pack(side=tk.RIGHT)
+btn_shuffle = ttk.Button(text='Shuffle',
+                         master=frm_card_buttons,
+                         command=shuffle_set)
+
+btn_shuffle.pack(side=tk.RIGHT)
 
 frm_stats = tk.Frame(bg='chartreuse')
-frm_stats.grid(column=0, row=2, sticky='wn')
+
+frm_stats.grid(column=0,
+               row=2,
+               sticky='wn')
 
 lbl_current_page_txt = tk.Label(text='Card:',
                                 font=FONT_SMALL,
