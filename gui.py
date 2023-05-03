@@ -11,14 +11,10 @@ FONT_SMALL = (FONT_NAME, 10)
 
 class GUI:
     def __init__(self, parent):
+        print('Start of GUI')
+
         frm_buttons = tk.Frame(width=100, bg='black')
         frm_buttons.grid(column=0, row=0, sticky='nw')
-
-        btn_new_set_save = ttk.Button(text='Save & New set', master=frm_buttons)
-        btn_new_set_save.pack(side=tk.LEFT, padx=10, pady=10)
-
-        btn_new_set_no_save = ttk.Button(text='New set', master=frm_buttons)
-        btn_new_set_no_save.pack(side=tk.RIGHT)
 
         frm_card = tk.Frame(bg='lime', width=600, height=400)
         frm_card.grid(column=0, row=1, sticky='we')
@@ -71,6 +67,16 @@ class GUI:
 
         lbl_max_page.grid(column=3,
                           row=0)
+
+        btn_new_set_save = ttk.Button(text='Save & New set', master=frm_buttons)
+        btn_new_set_save.pack(side=tk.LEFT, padx=10, pady=10)
+
+        btn_new_set_no_save = ttk.Button(text='New set',
+                                         master=frm_buttons,
+                                         command=lambda: load_new_set(lbl_card_txt,
+                                                                      lbl_current_page,
+                                                                      lbl_max_page))
+        btn_new_set_no_save.pack(side=tk.RIGHT)
 
 window = tk.Tk()
 window.columnconfigure(0, weight=1, minsize=200)
