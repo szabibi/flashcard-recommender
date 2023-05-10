@@ -45,11 +45,11 @@ def load_new_set(btns, lbl_card, lbl_page, lbl_max_page, lbl_set_name, sliders):
         td = datetime.strptime(last_reviewed, '%Y-%m-%d')
         days_since_last = (datetime.now() - td).days
 
-        date_weight = sliders['Last reviewed'].get() ** 3
+        date_weight = sliders['Days since review'].get() ** 2
 
         largest_count = db.get_largest_count()
         inverted_count = largest_count - count
-        count_weight = sliders['Least reviewed'].get() ** 3
+        count_weight = sliders['Least reviewed'].get() ** 2
 
         inverted_accuracy = 100 - accuracy
         accuracy_weight = sliders['Least accurate'].get()
@@ -96,7 +96,7 @@ def register_review_stats():
     count = current_stats[1]
     accuracy = current_stats[2]
 
-    gamma = 1 - 0.7 * (right_answer_count / word_count)
+    gamma = -3.5 * ((right_answer_count / word_count) - 0.5) ** 2 + 1
     print('gamma = ', gamma)
     print('accuracy * count * gamma', accuracy * count * gamma)
     updated_accuracy = ((accuracy * count * gamma) + (right_answer_count * 100 / word_count)) / (count * gamma + 1.0)
@@ -148,6 +148,9 @@ def load_next_card(btn_show, btn_right, btn_wrong, btn_shuffle, lbl_card, lbl_pa
         else:
             current_card_number += 1
             word_idx = word_sequence.pop(0)
+            set_button_state((btn_shuffle,), 'normal')
+    else:
+        set_button_state((btn_shuffle,), 'disabled')
 
     answer_revealed = not answer_revealed
 

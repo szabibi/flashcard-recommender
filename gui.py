@@ -113,18 +113,18 @@ class GUI:
         # Priority sliders
         i = 1
         sliders = {}
-        for txt in ("Last reviewed", "Least reviewed", "Least accurate"):
+        for txt in ("Days since review", "Least reviewed", "Least accurate"):
             lbl_txt = tk.Label(text=txt,
                                master=frm_buttons)
-            lbl_txt.grid(column=0, row = i, padx=(10,0), pady=(0,5), sticky='w')
+            lbl_txt.grid(column=0, row = i, padx=(10,5), pady=(0,5), sticky='w')
 
             lbl_val = tk.Label(text="0.00", master=frm_buttons)
-            lbl_val.grid(column=2, row=i, pady=(0,5), padx=0, sticky='w')
+            lbl_val.grid(column=1, row=i, pady=(0,5), padx=0, sticky='e')
 
-            sld = ttk.Scale(from_=0, to=5,
+            sld = ttk.Scale(from_=0, to=10,
                             master=frm_buttons,
                             command=lambda value, lbl=lbl_val: update_slider(value, lbl))
-            sld.grid(column=1, row=i, pady=(0,5))
+            sld.grid(column=1, row=i, pady=(0,5), sticky='w')
 
             sliders[txt]=sld
             i += 1

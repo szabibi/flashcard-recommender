@@ -3,7 +3,10 @@ import sqlite3
 con = sqlite3.connect('flashcards.db')
 cur = con.cursor()
 
-def get_db():
+def commit():
+    con.commit()
+
+def get_cur():
     return cur
 
 def get_largest_set_id():
@@ -32,5 +35,6 @@ def register_review_stats(set_id, accuracy):
     cur.execute(f'UPDATE sets SET last_reviewed=DATE(\'now\'), count=count+1, accuracy={accuracy}, last_flag=1 WHERE id={set_id}')
     con.commit()
 
-cur.execute(f'UPDATE sets SET last_flag=0')
-con.commit()
+def flush_last_flags():
+    cur.execute(f'UPDATE sets SET last_flag=0')
+    con.commit()
