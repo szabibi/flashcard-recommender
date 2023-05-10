@@ -1,5 +1,6 @@
 import random
 import db
+from datetime import datetime, date, timedelta
 
 BTN_REVEAL_TXT = ('Show', 'Next')
 
@@ -23,40 +24,87 @@ def update_slider(val, lbl):
 def init_card_sequence():
     global word_sequence, current_card_number
     word_sequence = [i for i in range(word_count)]
-    print(word_sequence)
+    # print(word_sequence)
     current_card_number = 1
     return word_sequence.pop(0)
 
-def load_new_set(btns=None, lbl_card=None, lbl_page=None, lbl_max_page=None):
-    global words, word_count, word_idx, answer_revealed, right_answer_count
+def load_new_set(btns, lbl_card, lbl_page, lbl_max_page, lbl_set_name, sliders):
+    global set, words, word_count, word_idx, answer_revealed, right_answer_count
 
-    success = False
-    while not success:
-        try:
-            set = random.randrange(1, db.get_largest_set_id() + 1)
-            print('Set:', set)
-            words = db.fetch_flaschards(set)
+    sets = db.fetch_all_set_stats()
+    print(sets)
+    tags = {}
 
-            word_count = len(words)
-            right_answer_count = 0
-            word_idx = init_card_sequence()
+    # calculate tag for all sets
+    for s in sets:
+        set_id = s[0]
+        last_reviewed = s[1]
+        count = s[2]
+        accuracy = s[3]
 
-            answer_revealed = False
+        td = datetime.strptime(last_reviewed, '%Y-%m-%d')
+        days_since_last = (datetime.now() - td).days
 
-            if lbl_page:
-                lbl_page.config(text='1')
-            if lbl_card and lbl_page and lbl_max_page:
-                update_card_label(lbl_card, lbl_page, lbl_max_page)
+        date_weight = sliders['Last reviewed'].get() ** 3
 
-            success = True
+        largest_count = db.get_largest_count()
+        inverted_count = largest_count - count
+        count_weight = sliders['Least reviewed'].get() ** 3
 
-            if btns:
-                set_button_state(btns, 'normal')
-        except IndexError:
-            pass
+        inverted_accuracy = 100 - accuracy
+        accuracy_weight = sliders['Least accurate'].get()
+
+        tag = days_since_last * date_weight + \
+              inverted_count * count_weight + \
+              inverted_accuracy * accuracy_weight
+
+        tags[set_id] = tag
+
+    # get all sets with highest tag
+    sets_with_highest_tag = []
+    highest_tag = max(tags.values())
+    for id_tag in tags.items():
+        if id_tag[1] == highest_tag:
+            sets_with_highest_tag.append(id_tag[0])
+
+    print('Tags:', tags)
+    print('Highest ranking sets:', sets_with_highest_tag)
+
+    # randomly pick a set from the sets_with_highest_tag
+    set = random.choice(sets_with_highest_tag)
+    print('Set:', set)
+    words = db.fetch_flaschards(set)
+
+    word_count = len(words)
+    right_answer_count = 0
+    word_idx = init_card_sequence()
+
+    answer_revealed = False
+
+    lbl_page.config(text='1')
+    update_card_label(lbl_card, lbl_page, lbl_max_page)
+    lbl_set_name.config(text=db.get_set_name(set))
+
+    set_button_state(btns, 'normal')
+    show_hide_buttons(btns[0], btns[1], btns[2])
 
     print('Loaded set')
     print(words)
+
+def register_review_stats():
+    current_stats = db.fetch_set_stats(set_id=set)
+    count = current_stats[1]
+    accuracy = current_stats[2]
+
+    gamma = 1 - 0.7 * (right_answer_count / word_count)
+    print('gamma = ', gamma)
+    print('accuracy * count * gamma', accuracy * count * gamma)
+    updated_accuracy = ((accuracy * count * gamma) + (right_answer_count * 100 / word_count)) / (count * gamma + 1.0)
+
+    print('set:', set, 'reviewed for the', count+1, 'th time, with an accuracy of', accuracy)
+    print('average accuracy:', updated_accuracy)
+
+    db.register_review_stats(set, updated_accuracy)
 
 def get_next_word():
     global word_sequence, current_card_number
@@ -94,6 +142,8 @@ def load_next_card(btn_show, btn_right, btn_wrong, btn_shuffle, lbl_card, lbl_pa
             lbl_card.config(text=f"All cards reviewed.\nYou got {right_answer_count} right,\nand {word_count-right_answer_count} wrong.\n\nStats recorded.")
             set_button_state((btn_show, btn_right, btn_wrong, btn_shuffle), 'disabled')
 
+            register_review_stats()
+
             return
         else:
             current_card_number += 1
@@ -126,4 +176,4 @@ words = []
 word_idx = 0
 word_count = 0
 
-load_new_set()
+#load_new_set()
