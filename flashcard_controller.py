@@ -31,49 +31,71 @@ def init_card_sequence():
 def load_new_set(btns, lbl_card, lbl_page, lbl_max_page, lbl_set_name, sliders):
     global set, words, word_count, word_idx, answer_revealed, right_answer_count
 
+    # betölti az összes szettet az adatbázisból, kivéve azt, aminek
+    # a last_flagje = 1 (az az, amit legutoljára gyakorolt a felhasználó)
     sets = db.fetch_all_set_stats()
-    print(sets)
+
+    # ebben a szótárban fogja eltárolni a szetteket és a hozzájuk tartozó címkét
     tags = {}
 
-    # calculate tag for all sets
+    # a csúszkák értékeiből kiszámolja, hogy az egyes tulajdonságokat milyen súllyal
+    # kell figyelembe venni majd ajánláskor
+    # az első kettőt négyzetre emeljük, mivel a szett pontosságának értéke várhatóan nagyobb,
+    # mint az elmúlt napok és a gyakorlások száma
+    date_weight = sliders['Days since review'].get() ** 2
+    count_weight = sliders['Least reviewed'].get() ** 2
+    accuracy_weight = sliders['Least accurate'].get()
+
+    # kiszámol minden szettre egy címkét, ami a három tulajdonság és hozzá tartozó
+    # súly szorzatainak összege
     for s in sets:
+
+        # szett attribútumainak kinyerése a listából
         set_id = s[0]
         last_reviewed = s[1]
         count = s[2]
         accuracy = s[3]
 
+        # utolsó gyakorlás átalakítása python datetime objektummá
+        # majd azóta eltelt napok számolása
+        # (egyet azért hozzáad, hogy a ma gyakorolt szettek is szóba jöhessenek valamennyire)
         td = datetime.strptime(last_reviewed, '%Y-%m-%d')
-        days_since_last = (datetime.now() - td).days
+        days_since_last = (datetime.now() - td).days + 1
 
-        date_weight = sliders['Days since review'].get() ** 2
-
-        largest_count = db.get_largest_count()
+        # adatbázisból megkeressük a legtöbbet gyakorolt szett gyakorlásainak számát
+        # ebből kivonjuk a feldolgozás alatt lévő szett számát, hogy
+        # a kevesebbet gyakoroltabbak nagyobb számmal rendelkezzenek
+        largest_count = db.get_largest_count() + 1
         inverted_count = largest_count - count
-        count_weight = sliders['Least reviewed'].get() ** 2
 
+        # a helyességi arányt tévedési aránnyá alakítjuk, hogy
+        # a pontatlanabb szettek nagyobb számmal rendelkezzenek
         inverted_accuracy = 100 - accuracy
-        accuracy_weight = sliders['Least accurate'].get()
 
+        # címke számolása
         tag = days_since_last * date_weight + \
               inverted_count * count_weight + \
               inverted_accuracy * accuracy_weight
 
         tags[set_id] = tag
 
-    # get all sets with highest tag
+    # megkeresi a legnagyobb címkét
     sets_with_highest_tag = []
     highest_tag = max(tags.values())
+
+    # majd egy listába elment minden szettet, aminek ugyanez a címkéje
     for id_tag in tags.items():
         if id_tag[1] == highest_tag:
             sets_with_highest_tag.append(id_tag[0])
 
-    print('Tags:', tags)
-    print('Highest ranking sets:', sets_with_highest_tag)
-
-    # randomly pick a set from the sets_with_highest_tag
+    # véletlenszerűen választ egy szettet az előbb kigyűjtöttek közül
     set = random.choice(sets_with_highest_tag)
-    print('Set:', set)
+
+    # betölti az összes szót, ami ebbe a szettbe tartozik
     words = db.fetch_flaschards(set)
+
+    # a kódban ezután még a GUI megfelelően frissül, hogy a szett gyakorlását meg
+    # lehessen kezdeni
 
     word_count = len(words)
     right_answer_count = 0
@@ -92,18 +114,24 @@ def load_new_set(btns, lbl_card, lbl_page, lbl_max_page, lbl_set_name, sliders):
     print(words)
 
 def register_review_stats():
+    # betölti adatbázisból a szett jelenlegi gyakorlásainak számát és pontossági arányát
     current_stats = db.fetch_set_stats(set_id=set)
     count = current_stats[1]
     accuracy = current_stats[2]
 
+    # kiszámol egy gammát, ami annál kisebb, minél szélsőségesebben teljesített
+    # a felhasználó (nagyon sokat rontott, nagyon sokat eltalált)
+    # ez a gamma határozza meg, hogy a korábbi pontossági arányt mennyire "jegyzi meg"
     gamma = -3.5 * ((right_answer_count / word_count) - 0.5) ** 2 + 1
-    print('gamma = ', gamma)
-    print('accuracy * count * gamma', accuracy * count * gamma)
+
+    # a frissített pontosság a korábbi pontosságból [eddigi gyakorlások száma] darab
+    # gamma súlyú érték
+    # és a mostani gyakorlás pontosságának (súlya 1) súlyozott átlaga
     updated_accuracy = ((accuracy * count * gamma) + (right_answer_count * 100 / word_count)) / (count * gamma + 1.0)
 
-    print('set:', set, 'reviewed for the', count+1, 'th time, with an accuracy of', accuracy)
-    print('average accuracy:', updated_accuracy)
-
+    # új értékek felvitele adatbázisba
+    # a háttérben nő meg a gyakorlások száma eggyel, és cserélődik le a legutóbbi
+    # gyakorlás napja a maira
     db.register_review_stats(set, updated_accuracy)
 
 def get_next_word():
