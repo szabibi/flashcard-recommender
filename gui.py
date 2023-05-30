@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import messagebox
 import tkinter.ttk as ttk
 
 from flashcard_controller import *
@@ -160,11 +161,14 @@ class EditDeckGUI(tk.Toplevel):
 
         # Frame of top menu
         frm_top_menu = tk.Frame(width=1000, master=self)
-        frm_top_menu.grid(row=0, column=0)
+        frm_top_menu.grid(row=0, column=0, sticky='we', pady=10, padx=10)
 
         # Frame of deck title
         frm_deck_name = tk.Frame(master=self, width=1000)
         frm_deck_name.grid(row=1, column=0)
+
+        frm_deck_name_buttons=tk.Frame(master=frm_deck_name)
+        frm_deck_name_buttons.grid(row=1, column=0, pady=10)
 
         # Frame of cards in deck
         self.frm_canvas = tk.Frame(master=self, width=800, height=100)
@@ -176,7 +180,7 @@ class EditDeckGUI(tk.Toplevel):
         self.canvas.grid(row=0, column=0, sticky='news')
 
         # Label for drop-down menu
-        tk.Label(text='Deck to edit: ', master=frm_top_menu).grid(column=0, row=0)
+        tk.Label(text='Deck to edit: ', master=frm_top_menu).grid(column=0, row=0, sticky='w')
 
         # Drop-down menu
         self.selected_deck = tk.StringVar(self)
@@ -193,17 +197,61 @@ class EditDeckGUI(tk.Toplevel):
                    command=self.load_deck_to_edit)\
             .grid(column=2, row=0)
 
+        # Save deck button
+        self.btn_save_deck = ttk.Button(text='Save',
+                                        master=frm_deck_name_buttons,
+                                        state='disabled',
+                                        command=lambda:self.save_deck())
+
+        # Rename deck button
+        self.btn_rename_deck = ttk.Button(text='Rename',
+                                          master=frm_deck_name_buttons,
+                                          state='disabled')
+
+        # Delete deck button
+        self.btn_delete_deck = ttk.Button(text='Delete',
+                                          master=frm_deck_name_buttons,
+                                          state='disabled')
+
+        ttk.Button(text='New',
+                   master=frm_top_menu).grid(column=6, row=0)
+
+        self.btn_save_deck.grid(column=0, row=2)
+        self.btn_rename_deck.grid(column=1, row=2)
+        self.btn_delete_deck.grid(column=2, row=2)
+
+
         # Deck title
         self.lbl_selected_deck = tk.Label(font=FONT_BIG,
-                                          text=self.selected_deck.get(),
+                                          text='Open a deck',
                                           master=frm_deck_name)
-        self.lbl_selected_deck.grid(column=0, row=1, sticky='w')
+        self.lbl_selected_deck.grid(column=0, row=0, sticky='we')
+
+        # Unsaved flag
+        self.unsaved = False
 
     def load_deck_to_edit(self, *args):
         global frm_deck_cards
 
+        if self.lbl_selected_deck['text'] == self.selected_deck.get():
+            return
+
+        if self.unsaved:
+            confirm = tk.messagebox.askyesnocancel('Warning', 'You have unsaved changes.\nSave before proceeding?', default='yes')
+            if confirm:
+                self.save_deck()
+            elif confirm is None:
+                return # cancel load
+
+        self.unsaved = False
+
+        # activate save, rename and delete buttons
+        self.btn_save_deck.config(state='normal')
+        self.btn_rename_deck.config(state='normal')
+        self.btn_delete_deck.config(state='normal')
+
         self.lbl_selected_deck.config(text=self.selected_deck.get())
-        deck_id = self.decks_dict[self.selected_deck.get()]
+        self.deck_id = self.decks_dict[self.selected_deck.get()]
 
         self.canvas.delete('all')
 
@@ -230,17 +278,14 @@ class EditDeckGUI(tk.Toplevel):
 
         # Cards
         # deck_size
-        deck_cards = db.fetch_flaschards(deck_id)
+        deck_cards = db.fetch_flashcards_with_id(self.deck_id)
         print(deck_cards)
         self.deck_size = len(deck_cards)
 
-        self.entry_field_frames = []
-        self.entry_field_labels = []
+        self.cards_to_delete = []
+        self.entry_field_card_info = []
         for i in range(self.deck_size):
-            self.create_card_fields(frm_deck_cards, i, deck_cards[i][0], deck_cards[i][1], deck_cards[i][2])
-
-            # txt_front_side = tk.Entry(master=frm_deck_cards)
-            # txt_front_side.grid(row=i, column=0, pady=10)
+            self.create_card_fields(frm_deck_cards, i, deck_cards[i][0], deck_cards[i][1], deck_cards[i][2], deck_cards[i][3])
 
         # canvas.config(scrollregion=canvas.bbox('all'))
         self.canvas.config(scrollregion=(0, 0, 450, 51 * self.deck_size + 50))
@@ -251,57 +296,102 @@ class EditDeckGUI(tk.Toplevel):
         self.deck_size += 1
         print(self.deck_size)
 
-        self.create_card_fields(frm_deck_cards, self.deck_size-1)
+        self.create_card_fields(frm_deck_cards, self.deck_size-1, new=True)
         self.canvas.config(scrollregion=(0, 0, 450, 51 * self.deck_size + 50))
         self.canvas.yview_moveto(1)
+
+        self.mark_deck_as_unsaved(None)
 
     def delete_card(self, frm):
         frm.grid_remove()
 
-        idx = self.entry_field_frames.index(frm)
+        frames = []
+        for info in self.entry_field_card_info:
+            frames.append(info['frame'])
 
-        for i in range(idx+1, len(self.entry_field_frames)):
-            new_id = int(self.entry_field_labels[i]["text"])-1
-            self.entry_field_labels[i].config(text=new_id)
-            self.entry_field_frames[i].grid_forget()
-            self.entry_field_frames[i].grid(row=new_id-1, column=0)
+        idx = frames.index(frm)
 
-        del self.entry_field_frames[idx]
-        del self.entry_field_labels[idx]
+        for i in range(idx+1, len(self.entry_field_card_info)):
+            new_id = int(self.entry_field_card_info[i]['label']['text'])-1
+            self.entry_field_card_info[i]['label'].config(text=new_id)
+            self.entry_field_card_info[i]['frame'].grid_forget()
+            self.entry_field_card_info[i]['frame'].grid(row=new_id-1, column=0)
+
+        if self.entry_field_card_info[idx]['id'] is not None:
+            self.cards_to_delete.append(self.entry_field_card_info[idx]['id'])
+
+        del self.entry_field_card_info[idx]
+
         self.deck_size -= 1
         self.canvas.config(scrollregion=(0, 0, 450, 51 * self.deck_size + 50))
 
-    def create_card_fields(self, master, row, front='', back='', hint=''):
+        self.mark_deck_as_unsaved(None)
+
+    def create_card_fields(self, master, row, id=None, front='', back='', hint='', new=False):
         frm_entry = tk.Frame(master=master)
         frm_entry.grid(row=row, column=0)
 
         lbl_card_number = tk.Label(master=frm_entry, text=f'{row + 1}')
-        lbl_card_number.grid(row=row, column=0, sticky='nsw', padx=10, pady=(10 if row > 0 else 0, 0))
+        lbl_card_number.grid(row=row, column=0, sticky='nswe', padx=10, pady=(10 if row > 0 else 0, 0))
 
+        var_front_side = tk.StringVar()
+        var_front_side.set(front)
+        var_front_side.trace('w', lambda name, index, mode, sv=var_front_side: self.mark_deck_as_unsaved(sv))
         tk.Label(master=frm_entry, text='Front side').grid(row=row, column=1, sticky='nw',
                                                                 pady=(10 if row > 0 else 0, 20))
-        entry_front_side = tk.Entry(master=frm_entry)
+        entry_front_side = tk.Entry(master=frm_entry, textvariable=var_front_side)
         entry_front_side.grid(row=row, column=1, sticky='sw', padx=(0, 10))
-        entry_front_side.insert(0, front)
 
+        var_back_side = tk.StringVar()
+        var_back_side.set(back)
+        var_back_side.trace('w', lambda name, index, mode, sv=var_back_side: self.mark_deck_as_unsaved(sv))
         tk.Label(master=frm_entry, text='Back side').grid(row=row, column=2, sticky='nw',
                                                                pady=(10 if row > 0 else 0, 20))
-        entry_back_side = tk.Entry(master=frm_entry)
+        entry_back_side = tk.Entry(master=frm_entry, textvariable=var_back_side)
         entry_back_side.grid(row=row, column=2, sticky='sw', padx=(0, 10))
-        entry_back_side.insert(0, back)
 
+        var_hint_side = tk.StringVar()
+        var_hint_side.set(hint)
+        var_hint_side.trace('w', lambda name, index, mode, sv=var_hint_side: self.mark_deck_as_unsaved(sv))
         tk.Label(master=frm_entry, text='Hint side').grid(row=row, column=3, sticky='nw',
                                                                pady=(10 if row > 0 else 0, 20))
-        entry_hint_side = tk.Entry(master=frm_entry)
+        entry_hint_side = tk.Entry(master=frm_entry, textvariable=var_hint_side)
         entry_hint_side.grid(row=row, column=3, sticky='sw')
-        entry_hint_side.insert(0, hint)
 
         btn_delete = ttk.Button(text='X', master=frm_entry, width=3,
                                 command=lambda:self.delete_card(frm_entry))
         btn_delete.grid(row=row, column=4, sticky='e', padx=10)
 
-        self.entry_field_frames.insert(row, frm_entry)
-        self.entry_field_labels.insert(row, lbl_card_number)
+        self.entry_field_card_info.insert(row, {'frame':frm_entry,
+                                             'label':lbl_card_number,
+                                             'id':id,
+                                             'front':var_front_side,
+                                             'back':var_back_side,
+                                             'hint':var_hint_side,
+                                             'new':new})
+
+    def mark_deck_as_unsaved(self, sv):
+        self.unsaved = True
+
+    def save_deck(self, *args):
+        if self.unsaved:
+
+            for info in self.entry_field_card_info:
+                if info['new']:
+                    db.add_card(self.deck_id, info['front'].get(), info['back'].get(), info['hint'].get())
+                    id = db.get_cur().lastrowid
+                    info['id'] = id
+                    info['new'] = False
+                else:
+                    db.update_card(info['id'], info['front'].get(), info['back'].get(), info['hint'].get())
+
+            for id in self.cards_to_delete:
+                db.delete_card(id)
+                self.cards_to_delete.remove(id)
+
+            db.commit()
+
+            self.unsaved = False
 
 window = tk.Tk()
 window.columnconfigure(0, weight=1, minsize=400)

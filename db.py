@@ -30,6 +30,9 @@ def fetch_flaschards(set_id):
     res = cur.execute(f'SELECT front, back, hint FROM cards WHERE set_id = {set_id}')
     return res.fetchall()
 
+def fetch_flashcards_with_id(set_id):
+    return cur.execute(f'SELECT id, front, back, hint FROM cards WHERE set_id = {set_id}').fetchall()
+
 def fetch_set_stats(set_id):
     res = cur.execute(f'SELECT last_reviewed, count, accuracy FROM sets WHERE id = {set_id}')
     return res.fetchone()
@@ -49,3 +52,20 @@ def register_review_stats(set_id, accuracy):
 def flush_last_flags():
     cur.execute(f'UPDATE sets SET last_flag=0')
     con.commit()
+
+def update_card(card_id, front, back, hint, commit=False):
+    cur.execute(f'UPDATE cards SET front=?, back=?, hint=? WHERE id=?', (front, back, hint, card_id))
+    if commit:
+        con.commit()
+
+def delete_card(card_id, commit=False):
+    cur.execute(f'DELETE FROM cards WHERE id={card_id}')
+    cur.execute(f'UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM cards) WHERE name="cards"')
+    if commit:
+        con.commit()
+
+def add_card(set_id, front, back, hint, commit=False):
+    cur.execute(f'INSERT INTO cards (set_id, front, back, hint)VALUES (?, ?, ?, ?)', (set_id, front, back, hint))
+    if commit:
+        con.commit()
+
