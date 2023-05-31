@@ -90,3 +90,6 @@ def deck_name_exists(name):
 def add_deck(name):
     cur.execute(f'INSERT INTO sets(name) VALUES (?)', (name,))
     con.commit()
+
+def get_card_count_in_deck(set_id):
+    return cur.execute(f'SELECT COUNT(*) FROM cards WHERE set_id={set_id}').fetchone()[0]

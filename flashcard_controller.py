@@ -35,6 +35,17 @@ def load_new_set(btns, lbl_card, lbl_page, lbl_max_page, lbl_set_name, sliders):
     # a last_flagje = 1 (az az, amit legutoljára gyakorolt a felhasználó)
     sets = db.fetch_all_set_stats()
 
+    # kiszedi az összes szettet, amiben nincs kártya
+    sets_tmp = sets[:]
+    for i in range(len(sets)):
+        set_id = sets[i][0]
+        card_count = db.get_card_count_in_deck(set_id)
+        if card_count <= 0:
+            del sets_tmp[i]
+
+    sets = sets_tmp
+    print(sets)
+
     # ebben a szótárban fogja eltárolni a szetteket és a hozzájuk tartozó címkét
     tags = {}
 
