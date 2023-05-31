@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 import tkinter.ttk as ttk
 
+import db
 from flashcard_controller import *
 
 BTN_REVEAL_TXT = ('Show', 'Next')
@@ -150,7 +151,14 @@ class GUI:
         self.edit_decks_window.lift()
 
     def close_edit_decks_window(self, window):
-        print("Closed")
+        if window.unsaved:
+            confirm = tk.messagebox.askyesnocancel('Warning', 'You have unsaved changes.\nSave before proceeding?',
+                                                   default='yes')
+            if confirm:
+                window.save_deck()
+            elif confirm is None:
+                return
+
         self.edit_decks_window_is_open = False
         window.destroy()
 
@@ -160,8 +168,8 @@ class EditDeckGUI(tk.Toplevel):
         super().__init__(master=master)
 
         # Frame of top menu
-        frm_top_menu = tk.Frame(width=1000, master=self)
-        frm_top_menu.grid(row=0, column=0, sticky='we', pady=10, padx=10)
+        self.frm_top_menu = tk.Frame(width=1000, master=self)
+        self.frm_top_menu.grid(row=0, column=0, sticky='we', pady=10, padx=10)
 
         # Frame of deck title
         frm_deck_name = tk.Frame(master=self, width=1000)
@@ -180,21 +188,20 @@ class EditDeckGUI(tk.Toplevel):
         self.canvas.grid(row=0, column=0, sticky='news')
 
         # Label for drop-down menu
-        tk.Label(text='Deck to edit: ', master=frm_top_menu).grid(column=0, row=0, sticky='w')
+        tk.Label(text='Deck to edit: ', master=self.frm_top_menu).grid(column=0, row=0, sticky='w')
 
         # Drop-down menu
         self.selected_deck = tk.StringVar(self)
         decks = db.fetch_all_sets()
         deck_names = sorted([decks[i][1] for i in range(len(decks))])
-        self.decks_dict = { decks[i][1]:decks[i][0] for i in range(len(decks))}
+        self.decks_dict = {decks[i][1]:decks[i][0] for i in range(len(decks))}
 
-        lst_decks = ttk.OptionMenu(frm_top_menu, self.selected_deck, deck_names[0], *deck_names)
-        lst_decks.grid(column=1, row=0)
+        self.dropdown_menu_init(deck_names)
 
         # Load deck button
         ttk.Button(text='Open',
-                   master=frm_top_menu,
-                   command=self.load_deck_to_edit)\
+                   master=self.frm_top_menu,
+                   command=lambda:self.load_deck_to_edit(deck_names, entry_rename_deck, btn_confirm_rename_deck, var_rename_deck))\
             .grid(column=2, row=0)
 
         # Save deck button
@@ -206,7 +213,10 @@ class EditDeckGUI(tk.Toplevel):
         # Rename deck button
         self.btn_rename_deck = ttk.Button(text='Rename',
                                           master=frm_deck_name_buttons,
-                                          state='disabled')
+                                          state='disabled',
+                                          command=lambda:self.rename_deck(entry_rename_deck, btn_confirm_rename_deck, var_rename_deck))
+
+        self.renaming_in_process = False
 
         # Delete deck button
         self.btn_delete_deck = ttk.Button(text='Delete',
@@ -214,7 +224,7 @@ class EditDeckGUI(tk.Toplevel):
                                           state='disabled')
 
         ttk.Button(text='New',
-                   master=frm_top_menu).grid(column=6, row=0)
+                   master=self.frm_top_menu).grid(column=6, row=0)
 
         self.btn_save_deck.grid(column=0, row=2)
         self.btn_rename_deck.grid(column=1, row=2)
@@ -227,13 +237,74 @@ class EditDeckGUI(tk.Toplevel):
                                           master=frm_deck_name)
         self.lbl_selected_deck.grid(column=0, row=0, sticky='we')
 
+        var_rename_deck = tk.StringVar()
+        entry_rename_deck = tk.Entry(textvariable=var_rename_deck,
+                                     master=frm_deck_name)
+        btn_confirm_rename_deck = ttk.Button(text='OK',
+                                             master=frm_deck_name,
+                                             command=lambda:self.confirm_rename(deck_names, entry_rename_deck, btn_confirm_rename_deck, var_rename_deck))
+
         # Unsaved flag
         self.unsaved = False
+
+    def dropdown_menu_init(self, names):
+        lst_decks = ttk.OptionMenu(self.frm_top_menu, self.selected_deck, names[0], *names)
+        lst_decks.grid(column=1, row=0)
+
+    def set_deck_buttons_state(self, state):
+        self.btn_save_deck.config(state=state)
+        self.btn_rename_deck.config(state=state)
+        self.btn_delete_deck.config(state=state)
+
+    def rename_deck(self, entry, btn, sv):
+        self.lbl_selected_deck.grid_forget()
+        entry.grid(row=0, column=0, sticky='w')
+        btn.grid(row=0, column=0, sticky='e')
+        self.set_deck_buttons_state('disabled')
+        sv.set(self.lbl_selected_deck['text'])
+
+        self.renaming_in_process = True
+
+    def confirm_rename(self, names, entry, btn, sv):
+        old_name = self.lbl_selected_deck['text']
+        new_name = sv.get()
+
+        deck_id = self.decks_dict[old_name]
+
+        # update database
+        try:
+            db.rename_deck(deck_id, new_name)
+        except:
+            tk.messagebox.showerror('Name not unique', f'There already exists a deck with the name \'{new_name}\'')
+            return False
+
+        names[names.index(old_name)] = new_name
+        self.dropdown_menu_init(names)
+
+        self.selected_deck.set(new_name)
+        self.lbl_selected_deck.config(text=new_name)
+
+        # replace dictionary entry with new name
+        del self.decks_dict[old_name]
+        self.decks_dict[new_name] = deck_id
+
+        # update gui
+        entry.grid_forget()
+        btn.grid_forget()
+        self.lbl_selected_deck.grid(row=0, column=0, sticky='we')
+        self.set_deck_buttons_state('normal')
+
+        self.renaming_in_process = False
 
     def load_deck_to_edit(self, *args):
         global frm_deck_cards
 
         if self.lbl_selected_deck['text'] == self.selected_deck.get():
+            return
+
+        if self.renaming_in_process:
+            tk.messagebox.showinfo('Cannot open deck', 'You must finish renaming the current deck\nbefore opening another one.')
+            self.selected_deck.set(self.lbl_selected_deck["text"])
             return
 
         if self.unsaved:
@@ -246,9 +317,7 @@ class EditDeckGUI(tk.Toplevel):
         self.unsaved = False
 
         # activate save, rename and delete buttons
-        self.btn_save_deck.config(state='normal')
-        self.btn_rename_deck.config(state='normal')
-        self.btn_delete_deck.config(state='normal')
+        self.set_deck_buttons_state('normal')
 
         self.lbl_selected_deck.config(text=self.selected_deck.get())
         self.deck_id = self.decks_dict[self.selected_deck.get()]
@@ -264,8 +333,8 @@ class EditDeckGUI(tk.Toplevel):
         frm_deck_buttons = tk.Frame(master=frm_inside_canvas)
         frm_deck_buttons.grid(row=1, column=0, pady=20)
 
-        btn_add_new_card = ttk.Button(text='Add', master=frm_deck_buttons, command=self.create_new_card_fields)
-        btn_add_new_card.pack()
+        btn_add_new_card = ttk.Button(text='Add', master=self.frm_canvas, command=self.create_new_card_fields)
+        btn_add_new_card.grid(row=1, column=0, pady=10)
 
         # Scrollbar
         vbar = ttk.Scrollbar(master=self.frm_canvas, orient='vertical', command=self.canvas.yview)
@@ -303,13 +372,19 @@ class EditDeckGUI(tk.Toplevel):
         self.mark_deck_as_unsaved(None)
 
     def delete_card(self, frm):
-        frm.grid_remove()
-
         frames = []
         for info in self.entry_field_card_info:
             frames.append(info['frame'])
 
         idx = frames.index(frm)
+
+        if self.entry_field_card_info[idx]["front"].get() != '' or\
+                self.entry_field_card_info[idx]["back"].get() != '' or\
+                self.entry_field_card_info[idx]["hint"].get() != '':
+            if not tk.messagebox.askyesno('Confirm', f'This action cannot be undone. Delete \'{self.entry_field_card_info[idx]["front"].get()}\'?', default='yes'):
+                return
+
+        frm.grid_remove()
 
         for i in range(idx+1, len(self.entry_field_card_info)):
             new_id = int(self.entry_field_card_info[i]['label']['text'])-1
@@ -319,6 +394,7 @@ class EditDeckGUI(tk.Toplevel):
 
         if self.entry_field_card_info[idx]['id'] is not None:
             self.cards_to_delete.append(self.entry_field_card_info[idx]['id'])
+            print(self.cards_to_delete)
 
         del self.entry_field_card_info[idx]
 
@@ -376,6 +452,7 @@ class EditDeckGUI(tk.Toplevel):
     def save_deck(self, *args):
         if self.unsaved:
 
+            # update cards in database
             for info in self.entry_field_card_info:
                 if info['new']:
                     db.add_card(self.deck_id, info['front'].get(), info['back'].get(), info['hint'].get())
@@ -385,9 +462,11 @@ class EditDeckGUI(tk.Toplevel):
                 else:
                     db.update_card(info['id'], info['front'].get(), info['back'].get(), info['hint'].get())
 
+            # delete cards to database
             for id in self.cards_to_delete:
                 db.delete_card(id)
-                self.cards_to_delete.remove(id)
+                print('Deleted card', id, 'remaining:', self.cards_to_delete)
+            self.cards_to_delete.clear()
 
             db.commit()
 

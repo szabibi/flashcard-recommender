@@ -69,3 +69,6 @@ def add_card(set_id, front, back, hint, commit=False):
     if commit:
         con.commit()
 
+def rename_deck(set_id, new_name):
+    cur.execute(f'UPDATE sets SET name=? WHERE id=?', (new_name, set_id))
+    con.commit()
