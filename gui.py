@@ -187,6 +187,8 @@ class EditDeckGUI(tk.Toplevel):
         self.canvas = tk.Canvas(master=self.frm_canvas, width=470, height=400)
         self.canvas.grid(row=0, column=0, sticky='news')
 
+        self.canvas.bind_all('<MouseWheel>', self._on_mousewheel)
+
         # Label for drop-down menu
         tk.Label(text='Deck to edit: ', master=self.frm_top_menu).grid(column=0, row=0, sticky='w')
 
@@ -249,6 +251,9 @@ class EditDeckGUI(tk.Toplevel):
         # Unsaved flag
         self.unsaved = False
 
+    def _on_mousewheel(self, event):
+        self.canvas.yview_scroll(-1 * (event.delta // 120), 'units')
+
     def create_new_deck(self, names):
         global frm_deck_cards, frm_deck_buttons
 
@@ -299,8 +304,8 @@ class EditDeckGUI(tk.Toplevel):
         frm_deck_cards = tk.Frame(master=frm_inside_canvas)
         frm_deck_cards.grid(row=0, column=0)
 
-        frm_deck_buttons = tk.Frame(master=frm_inside_canvas)
-        frm_deck_buttons.grid(row=1, column=0, pady=20)
+        #frm_deck_buttons = tk.Frame(master=frm_inside_canvas)
+        #frm_deck_buttons.grid(row=1, column=0, pady=20)
 
         btn_add_new_card = ttk.Button(text='Add', master=self.frm_canvas, command=self.create_new_card_fields)
         btn_add_new_card.grid(row=1, column=0, pady=10)
@@ -424,7 +429,7 @@ class EditDeckGUI(tk.Toplevel):
         self.update_canvas_scroll_region()
 
     def update_canvas_scroll_region(self):
-        self.canvas.config(scrollregion=(0, 0, 450, 51 * self.deck_size + 50))
+        self.canvas.config(scrollregion=(0, 0, 450, 51 * self.deck_size))
 
     def create_new_card_fields(self):
         global frm_deck_cards
