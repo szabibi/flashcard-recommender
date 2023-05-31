@@ -221,15 +221,17 @@ class EditDeckGUI(tk.Toplevel):
         # Delete deck button
         self.btn_delete_deck = ttk.Button(text='Delete',
                                           master=frm_deck_name_buttons,
-                                          state='disabled')
+                                          state='disabled',
+                                          command=lambda:self.delete_deck(deck_names))
 
+        # Create new deck button
         ttk.Button(text='New',
-                   master=self.frm_top_menu).grid(column=6, row=0)
+                   master=self.frm_top_menu,
+                   command=lambda:self.create_new_deck(deck_names)).grid(column=6, row=0)
 
         self.btn_save_deck.grid(column=0, row=2)
         self.btn_rename_deck.grid(column=1, row=2)
         self.btn_delete_deck.grid(column=2, row=2)
-
 
         # Deck title
         self.lbl_selected_deck = tk.Label(font=FONT_BIG,
@@ -247,9 +249,94 @@ class EditDeckGUI(tk.Toplevel):
         # Unsaved flag
         self.unsaved = False
 
+    def create_new_deck(self, names):
+        global frm_deck_cards, frm_deck_buttons
+
+        # Find first unique name
+        name = 'New deck'
+        if db.deck_name_exists(name):
+            i = 2
+            while db.deck_name_exists(name + f' ({i})'):
+                i += 1
+            name += f' ({i})'
+
+        # Show name
+        self.lbl_selected_deck.config(text=name)
+
+        # enable buttons
+        self.set_deck_buttons_state('normal')
+
+        # add deck to database
+        db.add_deck(name)
+        self.deck_id = db.get_cur().lastrowid
+        self.decks_dict[name] = self.deck_id
+
+        self.initialize_canvas()
+
+        # create three blank cards
+        self.deck_size = 3
+
+        for i in range(self.deck_size):
+            self.create_card_fields(frm_deck_cards, i, new=True)
+
+        self.update_canvas_scroll_region()
+
+        # add name to dropdown menu and map it to id in dictionary
+        names.append(name)
+        self.dropdown_menu_init(names)
+        self.selected_deck.set(name)
+
+        self.mark_deck_as_unsaved(None)
+
+    def initialize_canvas(self):
+        global frm_deck_cards, frm_deck_buttons
+
+        # initialize canvas
+        self.canvas.delete('all')
+        frm_inside_canvas = tk.Frame(master=self.canvas)
+        self.canvas.create_window((0, 0), window=frm_inside_canvas, anchor='nw')
+
+        frm_deck_cards = tk.Frame(master=frm_inside_canvas)
+        frm_deck_cards.grid(row=0, column=0)
+
+        frm_deck_buttons = tk.Frame(master=frm_inside_canvas)
+        frm_deck_buttons.grid(row=1, column=0, pady=20)
+
+        btn_add_new_card = ttk.Button(text='Add', master=self.frm_canvas, command=self.create_new_card_fields)
+        btn_add_new_card.grid(row=1, column=0, pady=10)
+
+        # Scrollbar
+        vbar = ttk.Scrollbar(master=self.frm_canvas, orient='vertical', command=self.canvas.yview)
+        vbar.grid(row=0, column=1, sticky='ns')
+        self.canvas.configure(yscrollcommand=vbar.set)
+
+        # initialize lists
+        self.cards_to_delete = []
+        self.entry_field_card_info = []
+
     def dropdown_menu_init(self, names):
         lst_decks = ttk.OptionMenu(self.frm_top_menu, self.selected_deck, names[0], *names)
         lst_decks.grid(column=1, row=0)
+
+    def delete_deck(self, names):
+        if not tk.messagebox.askyesno('Confirm',
+                                      f'This action cannot be undone. Delete \'{self.lbl_selected_deck["text"]}\'?',
+                                      default='yes'):
+            return
+
+        db.delete_deck(self.deck_id)
+
+        # set window back to state before opening a deck
+        self.set_deck_buttons_state('disabled')
+        self.canvas.delete('all')
+
+        # update dropdown menu
+        names.remove(self.lbl_selected_deck['text'])
+        self.dropdown_menu_init(names)
+
+        self.lbl_selected_deck.config(text='Open a deck')
+
+        self.unsaved = False
 
     def set_deck_buttons_state(self, state):
         self.btn_save_deck.config(state=state)
@@ -297,7 +384,7 @@ class EditDeckGUI(tk.Toplevel):
         self.renaming_in_process = False
 
     def load_deck_to_edit(self, *args):
-        global frm_deck_cards
+        global frm_deck_cards, frm_deck_buttons
 
         if self.lbl_selected_deck['text'] == self.selected_deck.get():
             return
@@ -322,28 +409,8 @@ class EditDeckGUI(tk.Toplevel):
         self.lbl_selected_deck.config(text=self.selected_deck.get())
         self.deck_id = self.decks_dict[self.selected_deck.get()]
 
-        self.canvas.delete('all')
 
-        frm_inside_canvas = tk.Frame(master=self.canvas)
-        self.canvas.create_window((0, 0), window=frm_inside_canvas, anchor='nw')
-
-        frm_deck_cards = tk.Frame(master=frm_inside_canvas)
-        frm_deck_cards.grid(row=0, column=0)
-
-        frm_deck_buttons = tk.Frame(master=frm_inside_canvas)
-        frm_deck_buttons.grid(row=1, column=0, pady=20)
-
-        btn_add_new_card = ttk.Button(text='Add', master=self.frm_canvas, command=self.create_new_card_fields)
-        btn_add_new_card.grid(row=1, column=0, pady=10)
-
-        # Scrollbar
-        vbar = ttk.Scrollbar(master=self.frm_canvas, orient='vertical', command=self.canvas.yview)
-        vbar.grid(row=0, column=1, sticky='ns')
-        self.canvas.configure(yscrollcommand=vbar.set)
-
-        # hbar = ttk.Scrollbar(master=frm_canvas, orient='horizontal', command=canvas.xview)
-        # hbar.grid(row=1, column=0, sticky='ew')
-        # canvas.configure(yscrollcommand=hbar.set)
+        self.initialize_canvas()
 
         # Cards
         # deck_size
@@ -351,12 +418,12 @@ class EditDeckGUI(tk.Toplevel):
         print(deck_cards)
         self.deck_size = len(deck_cards)
 
-        self.cards_to_delete = []
-        self.entry_field_card_info = []
         for i in range(self.deck_size):
             self.create_card_fields(frm_deck_cards, i, deck_cards[i][0], deck_cards[i][1], deck_cards[i][2], deck_cards[i][3])
 
-        # canvas.config(scrollregion=canvas.bbox('all'))
+        self.update_canvas_scroll_region()
+
+    def update_canvas_scroll_region(self):
         self.canvas.config(scrollregion=(0, 0, 450, 51 * self.deck_size + 50))
 
     def create_new_card_fields(self):
@@ -366,7 +433,7 @@ class EditDeckGUI(tk.Toplevel):
         print(self.deck_size)
 
         self.create_card_fields(frm_deck_cards, self.deck_size-1, new=True)
-        self.canvas.config(scrollregion=(0, 0, 450, 51 * self.deck_size + 50))
+        self.update_canvas_scroll_region()
         self.canvas.yview_moveto(1)
 
         self.mark_deck_as_unsaved(None)
@@ -399,7 +466,7 @@ class EditDeckGUI(tk.Toplevel):
         del self.entry_field_card_info[idx]
 
         self.deck_size -= 1
-        self.canvas.config(scrollregion=(0, 0, 450, 51 * self.deck_size + 50))
+        self.update_canvas_scroll_region()
 
         self.mark_deck_as_unsaved(None)
 
@@ -471,6 +538,7 @@ class EditDeckGUI(tk.Toplevel):
             db.commit()
 
             self.unsaved = False
+            print('Save deck!!!!')
 
 window = tk.Tk()
 window.columnconfigure(0, weight=1, minsize=400)

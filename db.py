@@ -72,3 +72,21 @@ def add_card(set_id, front, back, hint, commit=False):
 def rename_deck(set_id, new_name):
     cur.execute(f'UPDATE sets SET name=? WHERE id=?', (new_name, set_id))
     con.commit()
+
+def delete_deck(set_id):
+    cur.execute(f'DELETE FROM sets WHERE id={set_id}')
+    cur.execute(f'DELETE FROM cards WHERE set_id={set_id}')
+    cur.execute(f'UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM sets) WHERE name="sets"')
+    cur.execute(f'UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM cards) WHERE name="cards"')
+    con.commit()
+
+def deck_name_exists(name):
+    res = cur.execute(f'SELECT name FROM sets WHERE name = ?', (name,)).fetchall()
+    if len(res) > 0:
+        return True
+    else:
+        return False
+
+def add_deck(name):
+    cur.execute(f'INSERT INTO sets(name) VALUES (?)', (name,))
+    con.commit()
