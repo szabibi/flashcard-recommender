@@ -33,6 +33,7 @@ def load_new_set(btns, lbl_card, lbl_page, lbl_max_page, lbl_set_name, sliders):
 
     # betölti az összes szettet az adatbázisból, kivéve azt, aminek
     # a last_flagje = 1 (az az, amit legutoljára gyakorolt a felhasználó)
+    # és amiknél include = 0 (azaz a felhasználó megmondta, hogy ne legyen)
     sets = db.fetch_all_set_stats()
 
     # kiszedi az összes szettet, amiben nincs kártya
@@ -44,7 +45,10 @@ def load_new_set(btns, lbl_card, lbl_page, lbl_max_page, lbl_set_name, sliders):
             del sets_tmp[i]
 
     sets = sets_tmp
-    print(sets)
+
+    if len(sets) == 0:
+        print("No sets!")
+        return
 
     # ebben a szótárban fogja eltárolni a szetteket és a hozzájuk tartozó címkét
     tags = {}

@@ -225,6 +225,23 @@ class EditDeckGUI(tk.Toplevel):
                                           master=frm_deck_name_buttons,
                                           state='disabled',
                                           command=lambda:self.delete_deck(deck_names))
+        # Clear stats button
+        self.btn_clear_stats = ttk.Button(text='Clear stats',
+                                          master=frm_deck_name_buttons,
+                                          state='disabled',
+                                          command=lambda:self.clear_stats())
+
+        # Duplicate deck button
+        self.btn_duplicate_deck = ttk.Button(text='Duplicate',
+                                          master=frm_deck_name_buttons,
+                                          state='disabled',
+                                          command=lambda: self.duplicate_deck())
+
+        # Exclude/unclude deck button
+        self.btn_toggle_inclusion = ttk.Button(text='Included',
+                                          master=frm_deck_name_buttons,
+                                          state='disabled',
+                                          command=lambda: self.include_exclude_deck())
 
         # Create new deck button
         ttk.Button(text='New',
@@ -234,6 +251,9 @@ class EditDeckGUI(tk.Toplevel):
         self.btn_save_deck.grid(column=0, row=2)
         self.btn_rename_deck.grid(column=1, row=2)
         self.btn_delete_deck.grid(column=2, row=2)
+        self.btn_clear_stats.grid(column=0, row=3)
+        self.btn_duplicate_deck.grid(column=1, row=3)
+        self.btn_toggle_inclusion.grid(column=2, row=3)
 
         # Deck title
         self.lbl_selected_deck = tk.Label(font=FONT_BIG,
@@ -253,6 +273,26 @@ class EditDeckGUI(tk.Toplevel):
 
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1 * (event.delta // 120), 'units')
+
+    def include_exclude_deck(self):
+        db.toggle_inclusion(self.deck_id)
+        self.update_btn_toggle_inclusion()
+
+    def update_btn_toggle_inclusion(self):
+        included = db.get_deck_inclusion(self.deck_id)
+        if included:
+            self.btn_toggle_inclusion.config(text='Included')
+        else:
+            self.btn_toggle_inclusion.config(text='Excluded')
+
+    def clear_stats(self):
+        if not tk.messagebox.askyesno('Confirm',
+                                      f'This action will set all stats for this deck\n'
+                                      f'back to default, and cannot be undone. Proceed?',
+                                      default='no'):
+            return
+
+        db.clear_stats(self.deck_id)
 
     def create_new_deck(self, names):
         global frm_deck_cards, frm_deck_buttons
@@ -326,7 +366,7 @@ class EditDeckGUI(tk.Toplevel):
     def delete_deck(self, names):
         if not tk.messagebox.askyesno('Confirm',
                                       f'This action cannot be undone. Delete \'{self.lbl_selected_deck["text"]}\'?',
-                                      default='yes'):
+                                      default='no'):
             return
 
         db.delete_deck(self.deck_id)
@@ -347,6 +387,8 @@ class EditDeckGUI(tk.Toplevel):
         self.btn_save_deck.config(state=state)
         self.btn_rename_deck.config(state=state)
         self.btn_delete_deck.config(state=state)
+        self.btn_clear_stats.config(state=state)
+        self.btn_toggle_inclusion.config(state=state)
 
     def rename_deck(self, entry, btn, sv):
         self.lbl_selected_deck.grid_forget()
@@ -358,35 +400,37 @@ class EditDeckGUI(tk.Toplevel):
         self.renaming_in_process = True
 
     def confirm_rename(self, names, entry, btn, sv):
+        self.renaming_in_process = False
+
         old_name = self.lbl_selected_deck['text']
         new_name = sv.get()
 
         deck_id = self.decks_dict[old_name]
 
         # update database
-        try:
-            db.rename_deck(deck_id, new_name)
-        except:
-            tk.messagebox.showerror('Name not unique', f'There already exists a deck with the name \'{new_name}\'')
-            return False
+        if new_name != old_name:
+            try:
+                db.rename_deck(deck_id, new_name)
+            except:
+                tk.messagebox.showerror('Name not unique', f'There already exists a deck with the name \'{new_name}\'')
+                self.renaming_in_process = True
+                return False
 
-        names[names.index(old_name)] = new_name
-        self.dropdown_menu_init(names)
+            names[names.index(old_name)] = new_name
+            self.dropdown_menu_init(names)
 
-        self.selected_deck.set(new_name)
-        self.lbl_selected_deck.config(text=new_name)
+            self.selected_deck.set(new_name)
+            self.lbl_selected_deck.config(text=new_name)
 
-        # replace dictionary entry with new name
-        del self.decks_dict[old_name]
-        self.decks_dict[new_name] = deck_id
+            # replace dictionary entry with new name
+            del self.decks_dict[old_name]
+            self.decks_dict[new_name] = deck_id
 
         # update gui
         entry.grid_forget()
         btn.grid_forget()
         self.lbl_selected_deck.grid(row=0, column=0, sticky='we')
         self.set_deck_buttons_state('normal')
-
-        self.renaming_in_process = False
 
     def load_deck_to_edit(self, *args):
         global frm_deck_cards, frm_deck_buttons
@@ -408,12 +452,12 @@ class EditDeckGUI(tk.Toplevel):
 
         self.unsaved = False
 
-        # activate save, rename and delete buttons
-        self.set_deck_buttons_state('normal')
-
         self.lbl_selected_deck.config(text=self.selected_deck.get())
         self.deck_id = self.decks_dict[self.selected_deck.get()]
 
+        # activate save, rename and delete buttons
+        self.set_deck_buttons_state('normal')
+        self.update_btn_toggle_inclusion()
 
         self.initialize_canvas()
 
@@ -453,7 +497,7 @@ class EditDeckGUI(tk.Toplevel):
         if self.entry_field_card_info[idx]["front"].get() != '' or\
                 self.entry_field_card_info[idx]["back"].get() != '' or\
                 self.entry_field_card_info[idx]["hint"].get() != '':
-            if not tk.messagebox.askyesno('Confirm', f'This action cannot be undone. Delete \'{self.entry_field_card_info[idx]["front"].get()}\'?', default='yes'):
+            if not tk.messagebox.askyesno('Confirm', f'This action cannot be undone. Delete \'{self.entry_field_card_info[idx]["front"].get()}\'?', default='no'):
                 return
 
         frm.grid_remove()

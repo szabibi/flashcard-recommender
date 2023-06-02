@@ -38,7 +38,7 @@ def fetch_set_stats(set_id):
     return res.fetchone()
 
 def fetch_all_set_stats():
-    res = cur.execute(f'SELECT id, last_reviewed, count, accuracy FROM sets WHERE last_flag=0')
+    res = cur.execute(f'SELECT id, last_reviewed, count, accuracy FROM sets WHERE last_flag=0 AND include=1')
     return res.fetchall()
 
 def get_deck_size(set_id):
@@ -93,3 +93,14 @@ def add_deck(name):
 
 def get_card_count_in_deck(set_id):
     return cur.execute(f'SELECT COUNT(*) FROM cards WHERE set_id={set_id}').fetchone()[0]
+
+def clear_stats(deck_id):
+    cur.execute(f'UPDATE sets SET last_reviewed=DATE(\'now\'), count=0, accuracy=0 WHERE id = ?', (deck_id,))
+    con.commit()
+
+def toggle_inclusion(deck_id):
+    cur.execute(f'UPDATE sets SET include=CASE WHEN include=1 THEN 0 ELSE 1 END WHERE id = ?', (deck_id,))
+    con.commit()
+
+def get_deck_inclusion(deck_id):
+    return cur.execute(f'SELECT include FROM sets WHERE id = {deck_id}').fetchone()[0]
