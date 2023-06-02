@@ -235,7 +235,7 @@ class EditDeckGUI(tk.Toplevel):
         self.btn_duplicate_deck = ttk.Button(text='Duplicate',
                                           master=frm_deck_name_buttons,
                                           state='disabled',
-                                          command=lambda: self.duplicate_deck())
+                                          command=lambda: self.duplicate_deck(deck_names))
 
         # Exclude/unclude deck button
         self.btn_toggle_inclusion = ttk.Button(text='Included',
@@ -273,6 +273,47 @@ class EditDeckGUI(tk.Toplevel):
 
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1 * (event.delta // 120), 'units')
+
+    def duplicate_deck(self, names):
+        confirm = self.confirmation_before_opening()
+        if confirm is None or not confirm:
+            return
+
+        # save current deck_id
+        old_deck_id = self.deck_id
+
+        # Find first unique name
+        name = self.lbl_selected_deck['text']
+        if db.deck_name_exists(name):
+            i = 2
+            while db.deck_name_exists(name + f' ({i})'):
+                i += 1
+            name += f' ({i})'
+
+        db.add_deck(name)
+        self.deck_id = db.get_cur().lastrowid
+
+        self.decks_dict[name] = self.deck_id
+
+        # get cards from duplicated deck
+        cards = db.fetch_flaschards(old_deck_id)
+
+        # add cards to database
+        for c in cards:
+            db.add_card(self.deck_id, c[0], c[1], c[2], commit=False)
+        db.commit()
+
+        # update dropdown menu
+        names.append(name)
+        self.dropdown_menu_init(names)
+
+        # update deck name
+        self.lbl_selected_deck.config(text=name)
+
+        # update canvas, create entry fields for deck
+        self.create_entry_fields()
+
+
 
     def include_exclude_deck(self):
         db.toggle_inclusion(self.deck_id)
@@ -360,6 +401,7 @@ class EditDeckGUI(tk.Toplevel):
         self.entry_field_card_info = []
 
     def dropdown_menu_init(self, names):
+        names = sorted(names)
         lst_decks = ttk.OptionMenu(self.frm_top_menu, self.selected_deck, names[0], *names)
         lst_decks.grid(column=1, row=0)
 
@@ -371,6 +413,8 @@ class EditDeckGUI(tk.Toplevel):
 
         db.delete_deck(self.deck_id)
 
+        print('Deleted deck id', self.deck_id)
+
         # set window back to state before opening a deck
         self.set_deck_buttons_state('disabled')
         self.canvas.delete('all')
@@ -378,6 +422,8 @@ class EditDeckGUI(tk.Toplevel):
         # update dropdown menu
         names.remove(self.lbl_selected_deck['text'])
         self.dropdown_menu_init(names)
+
+        print('names in list:', names)
 
         self.lbl_selected_deck.config(text='Open a deck')
 
@@ -389,6 +435,7 @@ class EditDeckGUI(tk.Toplevel):
         self.btn_delete_deck.config(state=state)
         self.btn_clear_stats.config(state=state)
         self.btn_toggle_inclusion.config(state=state)
+        self.btn_duplicate_deck.config(state=state)
 
     def rename_deck(self, entry, btn, sv):
         self.lbl_selected_deck.grid_forget()
@@ -432,25 +479,32 @@ class EditDeckGUI(tk.Toplevel):
         self.lbl_selected_deck.grid(row=0, column=0, sticky='we')
         self.set_deck_buttons_state('normal')
 
+    def confirmation_before_opening(self):
+        if self.renaming_in_process:
+            tk.messagebox.showinfo('Cannot open deck', 'You must finish renaming the current deck\nbefore opening another one.')
+            self.selected_deck.set(self.lbl_selected_deck["text"])
+            return False
+
+        if self.unsaved:
+            confirm = tk.messagebox.askyesnocancel('Warning', 'You have unsaved changes.\nSave before proceeding?', default='yes')
+            if confirm:
+                self.save_deck()
+                return True
+            elif confirm is None:
+                return None
+
+        return True
+
     def load_deck_to_edit(self, *args):
         global frm_deck_cards, frm_deck_buttons
 
         if self.lbl_selected_deck['text'] == self.selected_deck.get():
             return
 
-        if self.renaming_in_process:
-            tk.messagebox.showinfo('Cannot open deck', 'You must finish renaming the current deck\nbefore opening another one.')
-            self.selected_deck.set(self.lbl_selected_deck["text"])
+        # checks if renaming is in process, asks if it should save first
+        confirm = self.confirmation_before_opening()
+        if confirm is None or not confirm:
             return
-
-        if self.unsaved:
-            confirm = tk.messagebox.askyesnocancel('Warning', 'You have unsaved changes.\nSave before proceeding?', default='yes')
-            if confirm:
-                self.save_deck()
-            elif confirm is None:
-                return # cancel load
-
-        self.unsaved = False
 
         self.lbl_selected_deck.config(text=self.selected_deck.get())
         self.deck_id = self.decks_dict[self.selected_deck.get()]
@@ -459,18 +513,20 @@ class EditDeckGUI(tk.Toplevel):
         self.set_deck_buttons_state('normal')
         self.update_btn_toggle_inclusion()
 
+        self.create_entry_fields()
+
+    def create_entry_fields(self):
+        global frm_deck_cards
+
         self.initialize_canvas()
 
-        # Cards
-        # deck_size
         deck_cards = db.fetch_flashcards_with_id(self.deck_id)
-        print(deck_cards)
         self.deck_size = len(deck_cards)
-
         for i in range(self.deck_size):
-            self.create_card_fields(frm_deck_cards, i, deck_cards[i][0], deck_cards[i][1], deck_cards[i][2], deck_cards[i][3])
-
+            self.create_card_fields(frm_deck_cards, i, deck_cards[i][0], deck_cards[i][1], deck_cards[i][2],
+                                    deck_cards[i][3])
         self.update_canvas_scroll_region()
+        self.unsaved = False
 
     def update_canvas_scroll_region(self):
         self.canvas.config(scrollregion=(0, 0, 450, 51 * self.deck_size))
