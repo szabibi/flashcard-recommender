@@ -40,16 +40,16 @@ class GUI:
         btn_reveal = ttk.Button(text=BTN_REVEAL_TXT[0],
                                 master=frm_card_buttons_top,
                                 state='disabled',
-                                command=lambda: load_next_card(btn_reveal, btn_mark_right, btn_mark_wrong, btn_shuffle, lbl_card_txt, lbl_current_page))
+                                command=lambda: load_next_card(btn_reveal, btn_mark_right, btn_mark_wrong, btn_shuffle, btn_which_side_first, lbl_card_txt, lbl_current_page))
 
         btn_reveal.grid(column=0, row=0, pady=(10,  5))
 
         btn_mark_right = ttk.Button(text='Right',
                                     master=frm_card_buttons_top,
-                                    command=lambda: load_next_card(btn_reveal, btn_mark_right, btn_mark_wrong, btn_shuffle, lbl_card_txt, lbl_current_page, inc_score=True))
+                                    command=lambda: load_next_card(btn_reveal, btn_mark_right, btn_mark_wrong, btn_shuffle, btn_which_side_first, lbl_card_txt, lbl_current_page, inc_score=True))
         btn_mark_wrong = ttk.Button(text='Wrong',
                                     master=frm_card_buttons_top,
-                                    command=lambda: load_next_card(btn_reveal, btn_mark_right, btn_mark_wrong, btn_shuffle, lbl_card_txt, lbl_current_page))
+                                    command=lambda: load_next_card(btn_reveal, btn_mark_right, btn_mark_wrong, btn_shuffle, btn_which_side_first, lbl_card_txt, lbl_current_page))
 
         #btn_mark_correct.grid(column=0, row=0, padx=5, pady=(10,  5))
         #btn_mark_wrong.grid(column=1, row=0, padx=5, pady=(10, 5))
@@ -59,7 +59,14 @@ class GUI:
                                  state='disabled',
                                  command=lambda: shuffle_set(btn_reveal, btn_mark_right, btn_mark_wrong, lbl_card_txt, lbl_current_page))
 
-        btn_shuffle.grid(column=0, row=1, pady=(0,10))
+        btn_shuffle.grid(column=1, row=1, pady=(0,10))
+
+        btn_which_side_first = ttk.Button(text='Front first',
+                                 master=frm_card_buttons_bottom,
+                                 state='disabled',
+                                 command=lambda: toggle_which_side_first(btn_which_side_first, lbl_card_txt, lbl_current_page))
+
+        btn_which_side_first.grid(column=0, row=1, pady=(0, 10))
 
         frm_stats = tk.Frame()
 
@@ -102,7 +109,7 @@ class GUI:
 
         btn_new_set_no_save = ttk.Button(text='New deck',
                                          master=frm_buttons,
-                                         command=lambda: load_new_set((btn_reveal, btn_mark_right, btn_mark_wrong, btn_shuffle),
+                                         command=lambda: load_new_set((btn_reveal, btn_mark_right, btn_mark_wrong, btn_shuffle, btn_which_side_first),
                                                                       lbl_card_txt,
                                                                       lbl_current_page,
                                                                       lbl_max_page,
@@ -146,6 +153,7 @@ class GUI:
         if not self.edit_decks_window_is_open:
             self.edit_decks_window_is_open = True
             self.edit_decks_window = EditDeckGUI(window)
+            self.edit_decks_window.resizable(width=False, height=False)
             self.edit_decks_window.protocol('WM_DELETE_WINDOW', lambda: self.close_edit_decks_window(self.edit_decks_window))
 
         self.edit_decks_window.lift()
@@ -250,9 +258,9 @@ class EditDeckGUI(tk.Toplevel):
 
         self.btn_save_deck.grid(column=0, row=2)
         self.btn_rename_deck.grid(column=1, row=2)
-        self.btn_delete_deck.grid(column=2, row=2)
-        self.btn_clear_stats.grid(column=0, row=3)
-        self.btn_duplicate_deck.grid(column=1, row=3)
+        self.btn_delete_deck.grid(column=3, row=2)
+        self.btn_clear_stats.grid(column=1, row=3)
+        self.btn_duplicate_deck.grid(column=2, row=2)
         self.btn_toggle_inclusion.grid(column=2, row=3)
 
         # Deck title
@@ -438,9 +446,9 @@ class EditDeckGUI(tk.Toplevel):
         self.btn_duplicate_deck.config(state=state)
 
     def rename_deck(self, entry, btn, sv):
-        self.lbl_selected_deck.grid_forget()
-        entry.grid(row=0, column=0, sticky='w')
-        btn.grid(row=0, column=0, sticky='e')
+        self.lbl_selected_deck.grid_remove()
+        entry.grid(row=0, column=0, sticky='w', padx=(40,0))
+        btn.grid(row=0, column=0, sticky='e', padx=(0,40))
         self.set_deck_buttons_state('disabled')
         sv.set(self.lbl_selected_deck['text'])
 

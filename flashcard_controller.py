@@ -4,6 +4,20 @@ from datetime import datetime, date, timedelta
 
 BTN_REVEAL_TXT = ('Show', 'Next')
 
+which_side_first = 0 # 0: front, 1: back
+
+def toggle_which_side_first(btn_which_side_first, lbl_card_txt, lbl_current_page):
+    global which_side_first
+
+    which_side_first = 1 - which_side_first
+
+    if which_side_first == 1:
+        btn_which_side_first.config(text='Back first')
+    else:
+        btn_which_side_first.config(text='Front first')
+
+    update_card_label(lbl_card_txt, lbl_current_page)
+
 def show_hide_buttons(btn_show, btn_right, btn_wrong):
     if not answer_revealed:
         btn_show.grid(column=0, row=0, pady=(10, 5))
@@ -125,9 +139,6 @@ def load_new_set(btns, lbl_card, lbl_page, lbl_max_page, lbl_set_name, sliders):
     set_button_state(btns, 'normal')
     show_hide_buttons(btns[0], btns[1], btns[2])
 
-    print('Loaded set')
-    print(words)
-
 def register_review_stats():
     # betölti adatbázisból a szett jelenlegi gyakorlásainak számát és pontossági arányát
     current_stats = db.fetch_set_stats(set_id=set)
@@ -162,15 +173,15 @@ def get_next_word():
 
 def update_card_label(lbl_card, lbl_page, lbl_max_page=None):
     if not answer_revealed:
-        lbl_card.config(text= words[word_idx][0])
+        lbl_card.config(text= words[word_idx][which_side_first])
         lbl_page.config(text= f'{current_card_number}')
     else:
-        lbl_card.config(text= words[word_idx][1])
+        lbl_card.config(text= words[word_idx][1-which_side_first])
 
     if lbl_max_page:
         lbl_max_page.config(text=f'/ {word_count}')
 
-def load_next_card(btn_show, btn_right, btn_wrong, btn_shuffle, lbl_card, lbl_page, inc_score=False):
+def load_next_card(btn_show, btn_right, btn_wrong, btn_shuffle, btn_which_side_first, lbl_card, lbl_page, inc_score=False):
     global word_idx,current_card_number, answer_revealed,word_sequence, right_answer_count
 
     print('ANSWER:', answer_revealed)
@@ -183,7 +194,7 @@ def load_next_card(btn_show, btn_right, btn_wrong, btn_shuffle, lbl_card, lbl_pa
         if len(word_sequence) == 0: # elfogytak a szavak
 
             lbl_card.config(text=f"All cards reviewed.\nYou got {right_answer_count} right,\nand {word_count-right_answer_count} wrong.\n\nStats recorded.")
-            set_button_state((btn_show, btn_right, btn_wrong, btn_shuffle), 'disabled')
+            set_button_state((btn_show, btn_right, btn_wrong, btn_shuffle, btn_which_side_first), 'disabled')
 
             register_review_stats()
 
@@ -191,9 +202,9 @@ def load_next_card(btn_show, btn_right, btn_wrong, btn_shuffle, lbl_card, lbl_pa
         else:
             current_card_number += 1
             word_idx = word_sequence.pop(0)
-            set_button_state((btn_shuffle,), 'normal')
+            set_button_state((btn_shuffle,btn_which_side_first), 'normal')
     else:
-        set_button_state((btn_shuffle,), 'disabled')
+        set_button_state((btn_shuffle,btn_which_side_first), 'disabled')
 
     answer_revealed = not answer_revealed
 
