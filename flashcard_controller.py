@@ -120,13 +120,23 @@ def load_new_set(btns, lbl_card, lbl_page, lbl_max_page, lbl_set_name, sliders):
     # véletlenszerűen választ egy szettet az előbb kigyűjtöttek közül
     set = random.choice(sets_with_highest_tag)
 
-    # betölti az összes szót, ami ebbe a szettbe tartozik
-    words = db.fetch_flaschards(set)
-
     # a kódban ezután még a GUI megfelelően frissül, hogy a szett gyakorlását meg
     # lehessen kezdeni
+    prepare_deck(set, False, None, btns, lbl_card, lbl_page, lbl_max_page, lbl_set_name)
+
+def prepare_deck(deck_id, is_a_name, deck, btns, lbl_card, lbl_page, lbl_max_page, lbl_set_name):
+    global set, words, word_count, right_answer_count, word_idx, answer_revealed
+
+    if is_a_name:
+        deck_id = deck[deck_id]
+
+    set = deck_id
+
+    # betölti az összes szót, ami ebbe a szettbe tartozik
+    words = db.fetch_flaschards(deck_id)
 
     word_count = len(words)
+
     right_answer_count = 0
     word_idx = init_card_sequence()
 
@@ -134,7 +144,7 @@ def load_new_set(btns, lbl_card, lbl_page, lbl_max_page, lbl_set_name, sliders):
 
     lbl_page.config(text='1')
     update_card_label(lbl_card, lbl_page, lbl_max_page)
-    lbl_set_name.config(text=db.get_set_name(set))
+    lbl_set_name.config(text=db.get_set_name(deck_id))
 
     set_button_state(btns, 'normal')
     show_hide_buttons(btns[0], btns[1], btns[2])

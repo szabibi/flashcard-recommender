@@ -103,11 +103,31 @@ class GUI:
         lbl_max_page.grid(column=3,
                           row=1)
 
-        # New Set buttons
-        # btn_new_set_save = ttk.Button(text='Save & New set', master=frm_buttons)
-        # btn_new_set_save.grid(column=0, row=0, padx=(10,0))
+        # Load specific deck
+        btn_load_deck = ttk.Button(text='Load',
+                                   master=frm_buttons,
+                                   command=lambda:prepare_deck(self.selected_deck.get(),
+                                                                True,
+                                                               self.decks_dict,
+                                                               (btn_reveal, btn_mark_right, btn_mark_wrong, btn_shuffle, btn_which_side_first),
+                                                               lbl_card_txt,
+                                                               lbl_current_page,
+                                                               lbl_max_page,
+                                                               lbl_set_name
+                                                                )
+                                   )
+        btn_load_deck.grid(pady=(10,0), column=1, row=0, sticky='w')
 
-        btn_new_set_no_save = ttk.Button(text='New deck',
+        # Drop-down menu
+        self.selected_deck = tk.StringVar()
+        decks = db.fetch_all_sets()
+        deck_names = sorted([decks[i][1] for i in range(len(decks))])
+        self.decks_dict = {decks[i][1]: decks[i][0] for i in range(len(decks))}
+
+        self.dropdown_menu_init(deck_names, frm_buttons)
+
+        # Deck recommender
+        btn_new_set_no_save = ttk.Button(text='Recommend',
                                          master=frm_buttons,
                                          command=lambda: load_new_set((btn_reveal, btn_mark_right, btn_mark_wrong, btn_shuffle, btn_which_side_first),
                                                                       lbl_card_txt,
@@ -115,17 +135,17 @@ class GUI:
                                                                       lbl_max_page,
                                                                       lbl_set_name,
                                                                       sliders))
-        btn_new_set_no_save.grid(column=0, row=0, padx=(10,0), pady=10)
+        btn_new_set_no_save.grid(column=0, row=1, padx=(10,0), pady=10)
 
         lbl_new_set_warning = tk.Label(text='(Current progress will be lost!)',
                             master=frm_buttons)
 
-        lbl_new_set_warning.grid(column=1, row=0, pady=10)
+        lbl_new_set_warning.grid(column=1, row=1, pady=10)
 
         btn_edit_decks = ttk.Button(text='Edit decks',
                                     master=frm_buttons,
                                     command=self.open_edit_decks_window)
-        btn_edit_decks.grid(column=2, row=0,
+        btn_edit_decks.grid(column=2, row=1,
                             padx=(30, 0))
 
         # Priority sliders
@@ -134,15 +154,15 @@ class GUI:
         for txt in ("Days since review", "Least reviewed", "Least accurate"):
             lbl_txt = tk.Label(text=txt,
                                master=frm_buttons)
-            lbl_txt.grid(column=0, row = i, padx=(10,5), pady=(0,5), sticky='w')
+            lbl_txt.grid(column=0, row = i+1, padx=(10,5), pady=(0,5), sticky='w')
 
             lbl_val = tk.Label(text="0.00", master=frm_buttons)
-            lbl_val.grid(column=1, row=i, pady=(0,5), padx=0, sticky='e')
+            lbl_val.grid(column=1, row=i+1, pady=(0,5), padx=0, sticky='e')
 
             sld = ttk.Scale(from_=0, to=10,
                             master=frm_buttons,
                             command=lambda value, lbl=lbl_val: update_slider(value, lbl))
-            sld.grid(column=1, row=i, pady=(0,5), sticky='w')
+            sld.grid(column=1, row=i+1, pady=(0,5), sticky='w')
 
             sliders[txt]=sld
             i += 1
@@ -169,6 +189,11 @@ class GUI:
 
         self.edit_decks_window_is_open = False
         window.destroy()
+
+    def dropdown_menu_init(self, names, master):
+        names = sorted(names)
+        lst_decks = ttk.OptionMenu(master, self.selected_deck, names[0], *names)
+        lst_decks.grid(pady=(10,0), column=0, row=0)
 
 class EditDeckGUI(tk.Toplevel):
     def __init__(self, master=None):
